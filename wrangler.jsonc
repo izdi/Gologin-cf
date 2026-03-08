@@ -1,0 +1,27 @@
+{
+  "name": "gologin-cf",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-10",
+  "containers": [
+    {
+      "class_name": "OrbitaContainer",
+      "image": "./container/Dockerfile",
+      "instance_type": "standard-3",
+      "max_instances": 5
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ORBITA",
+        "class_name": "OrbitaContainer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["OrbitaContainer"]
+    }
+  ]
+}
