@@ -3,7 +3,13 @@ import { Container } from "@cloudflare/containers";
 // Cloudflare Containers beta — extend context typings
 declare module "cloudflare:workers" {
   interface DurableObjectState {
-    container: { running: boolean };
+    container: {
+      running: boolean;
+      start(options?: {
+        env?: Record<string, string>;
+      }): void;
+      destroy(): Promise<void>;
+    };
   }
 }
 
@@ -26,7 +32,6 @@ interface ProfileConfig {
 
 export class OrbitaContainer extends Container {
   defaultPort = 3500;
-  requiredPorts = [3500];
   sleepAfter = "30m";
   enableInternet = true;
 
@@ -35,28 +40,24 @@ export class OrbitaContainer extends Container {
   ): Promise<Response> {
     const path = new URL(request.url).pathname;
 
-    // ---- internal management API (not proxied to Docker) ----
+    // ---- internal management API ----
 
     if (path === "/__internal/configure") {
-      const config = await request.json<ProfileConfig>();
+      const config =
+        await request.json<ProfileConfig>();
       await this.ctx.storage.put("config", config);
-      try {
-        await this.ctx.blockConcurrencyWhile(
-          () => this.ensureRunning(),
-        );
-        return Response.json({ status: "started" });
-      } catch {
-        // Container may still be starting — return 202
-        return Response.json(
-          { status: "starting" },
-          { status: 202 },
-        );
-      }
+      this.startContainer(config);
+      return Response.json(
+        { status: "starting" },
+        { status: 202 },
+      );
     }
 
     if (path === "/__internal/status") {
       const config =
-        await this.ctx.storage.get<ProfileConfig>("config");
+        await this.ctx.storage.get<ProfileConfig>(
+          "config",
+        );
       return Response.json({
         running: this.ctx.container.running,
         profileId: config?.profileId,
@@ -64,47 +65,47 @@ export class OrbitaContainer extends Container {
     }
 
     if (path === "/__internal/stop") {
+      await this.ctx.container.destroy();
       await this.ctx.storage.deleteAll();
       return Response.json({ status: "stopping" });
     }
 
-    // ---- CDP proxy — make sure the browser is up first ----
+    // ---- CDP proxy ----
 
-    try {
-      await this.ctx.blockConcurrencyWhile(
-        () => this.ensureRunning(),
-      );
-    } catch (err) {
-      return Response.json(
-        { error: (err as Error).message },
-        { status: 400 },
-      );
+    if (!this.ctx.container.running) {
+      const config =
+        await this.ctx.storage.get<ProfileConfig>(
+          "config",
+        );
+      if (!config) {
+        return Response.json(
+          {
+            error:
+              "Profile not configured." +
+              " POST /api/profiles/:id/start first.",
+          },
+          { status: 400 },
+        );
+      }
+      this.startContainer(config);
     }
 
+    // super.fetch() blocks until defaultPort (3500)
+    // is ready, then proxies the request
     return super.fetch(request);
   }
 
-  // Start the Docker container if it is not already running.
-  private async ensureRunning(): Promise<void> {
-    if (this.ctx.container.running) return;
-
-    const config =
-      await this.ctx.storage.get<ProfileConfig>("config");
-    if (!config) {
-      throw new Error(
-        "Profile not configured. POST /api/profiles/:id/start first.",
-      );
-    }
-
-    await this.startAndWaitForPorts({
-      ports: [3500],
-      startOptions: {
-        envVars: {
-          TOKEN: config.token,
-          PROFILE_ID: config.profileId,
-          SCREEN_WIDTH: String(config.screenWidth || 1920),
-          SCREEN_HEIGHT: String(config.screenHeight || 1080),
-        },
+  private startContainer(config: ProfileConfig): void {
+    this.ctx.container.start({
+      env: {
+        TOKEN: config.token,
+        PROFILE_ID: config.profileId,
+        SCREEN_WIDTH: String(
+          config.screenWidth || 1920,
+        ),
+        SCREEN_HEIGHT: String(
+          config.screenHeight || 1080,
+        ),
       },
     });
   }
