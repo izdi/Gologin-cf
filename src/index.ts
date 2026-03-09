@@ -40,10 +40,18 @@ export class OrbitaContainer extends Container {
     if (path === "/__internal/configure") {
       const config = await request.json<ProfileConfig>();
       await this.ctx.storage.put("config", config);
-      await this.ctx.blockConcurrencyWhile(
-        () => this.ensureRunning(),
-      );
-      return Response.json({ status: "started" });
+      try {
+        await this.ctx.blockConcurrencyWhile(
+          () => this.ensureRunning(),
+        );
+        return Response.json({ status: "started" });
+      } catch {
+        // Container may still be starting — return 202
+        return Response.json(
+          { status: "starting" },
+          { status: 202 },
+        );
+      }
     }
 
     if (path === "/__internal/status") {

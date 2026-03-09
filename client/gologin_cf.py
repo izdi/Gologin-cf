@@ -71,13 +71,19 @@ class GologinCF:
                 "screenHeight": self.screen_height,
             },
             headers=self.headers,
-            timeout=30,
+            timeout=60,
         )
-        resp.raise_for_status()
-        logger.info(
-            "Container started for profile %s",
-            self.profile_id,
-        )
+        if resp.status_code in (200, 202):
+            logger.info(
+                "Container %s for profile %s",
+                resp.json().get("status", "unknown"),
+                self.profile_id,
+            )
+        else:
+            logger.warning(
+                "Start returned %s, will poll anyway",
+                resp.status_code,
+            )
 
         # Poll until Orbita exposes CDP
         self._ws_endpoint = self._poll_cdp(

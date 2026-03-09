@@ -156,7 +156,8 @@ RUN groupadd -r orbita && \
     chown -R orbita:orbita /home/orbita && \
     echo 'orbita ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-RUN mkdir -p /home/orbita/.gologin/browser
+RUN mkdir -p /home/orbita/.gologin/browser/fonts && \
+    chown -R orbita:orbita /home/orbita/.gologin
 
 EXPOSE 3500
 
