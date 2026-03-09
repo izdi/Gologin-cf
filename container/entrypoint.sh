@@ -3,15 +3,23 @@
 echo "[entrypoint] Container started"
 echo "[entrypoint] env: PROFILE_ID=${PROFILE_ID} TOKEN=${TOKEN:0:8}..."
 
-# Simple HTTP server on port 3500 to verify container can start
-# Remove this debug block once browser startup works
-node -e "
-const http = require('http');
-const server = http.createServer((req, res) => {
-  res.writeHead(200, {'Content-Type': 'application/json'});
-  res.end(JSON.stringify({status: 'container-alive', port: 3500}));
-});
-server.listen(3500, '0.0.0.0', () => {
-  console.log('[debug] Health server listening on 3500');
-});
-"
+export DISPLAY=:0
+SCREEN_WIDTH=${SCREEN_WIDTH:-1920}
+SCREEN_HEIGHT=${SCREEN_HEIGHT:-1080}
+
+echo "[entrypoint] Starting Xvfb ${SCREEN_WIDTH}x${SCREEN_HEIGHT}"
+Xvfb "$DISPLAY" -screen 0 "${SCREEN_WIDTH}x${SCREEN_HEIGHT}x16" &
+sleep 2
+
+if xdpyinfo -display "$DISPLAY" > /dev/null 2>&1; then
+  echo "[entrypoint] Xvfb is running"
+else
+  echo "[entrypoint] ERROR: Xvfb failed to start"
+fi
+
+echo "[entrypoint] Checking Orbita binary"
+ls -la /usr/bin/orbita-browser/chrome 2>&1 || echo "[entrypoint] ERROR: Orbita binary not found"
+
+echo "[entrypoint] Launching GoLogin SDK"
+cd /opt/orbita
+exec node index.js

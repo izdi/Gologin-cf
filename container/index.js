@@ -22,22 +22,30 @@ const gl = new GoLogin(params);
 
 function heartbeat() {
   console.log(
-    "alive | port 3000 | profile",
+    "alive | port 3500 | profile",
     process.env.PROFILE_ID,
   );
 }
 
 async function main() {
-  console.log("GoLogin starting with profile", params.profile_id);
-  await gl.start({
-    uploadCookiesToServer: true,
-    autoUpdateBrowser: false,
-  });
-  console.log("Browser ready on CDP port 3500");
-  setInterval(heartbeat, 30_000);
+  console.log("[node] GoLogin starting with profile", params.profile_id);
+  console.log("[node] executablePath:", params.executablePath);
+  console.log("[node] DISPLAY:", process.env.DISPLAY);
+
+  try {
+    await gl.start({
+      uploadCookiesToServer: true,
+      autoUpdateBrowser: false,
+    });
+    console.log("[node] Browser ready on CDP port 3500");
+    setInterval(heartbeat, 30_000);
+  } catch (err) {
+    console.error("[node] FATAL:", err.message || err);
+    console.error("[node] Stack:", err.stack || "no stack");
+    // Keep process alive so logs are captured
+    console.log("[node] Keeping process alive for log capture...");
+    setInterval(() => {}, 60_000);
+  }
 }
 
-main().catch((err) => {
-  console.error("Fatal:", err);
-  process.exit(1);
-});
+main();
