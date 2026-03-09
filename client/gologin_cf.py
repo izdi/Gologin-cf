@@ -18,7 +18,6 @@ class GologinCF:
         gl = GologinCF(
             worker_url="https://gologin-cf.<sub>.workers.dev",
             api_key="worker-api-key",
-            token="gologin-api-token",
             profile_id="yU0Pr0f1leiD",
         )
         ws_url = gl.start()          # boots container + browser
@@ -30,14 +29,12 @@ class GologinCF:
         self,
         worker_url: str,
         api_key: str,
-        token: str,
         profile_id: str,
         screen_width: int = 1920,
         screen_height: int = 1080,
     ) -> None:
         self.worker_url = worker_url.rstrip("/")
         self.api_key = api_key
-        self.token = token
         self.profile_id = profile_id
         self.screen_width = screen_width
         self.screen_height = screen_height
@@ -70,7 +67,6 @@ class GologinCF:
         resp = requests.post(
             url,
             json={
-                "token": self.token,
                 "screenWidth": self.screen_width,
                 "screenHeight": self.screen_height,
             },

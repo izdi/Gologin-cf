@@ -10,6 +10,7 @@ declare module "cloudflare:workers" {
 interface Env {
   ORBITA: DurableObjectNamespace;
   API_KEY: string;
+  GOLOGIN_TOKEN: string;
 }
 
 interface ProfileConfig {
@@ -170,11 +171,12 @@ export default {
       const stub = env.ORBITA.getByName(profileId);
 
       if (action === "start") {
-        const reqBody = await request.json<{
-          token: string;
-          screenWidth?: number;
-          screenHeight?: number;
-        }>();
+        const reqBody = (request.body)
+          ? await request.json<{
+              screenWidth?: number;
+              screenHeight?: number;
+            }>()
+          : {};
         return stub.fetch(
           new Request(
             "http://container/__internal/configure",
@@ -184,7 +186,7 @@ export default {
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                token: reqBody.token,
+                token: env.GOLOGIN_TOKEN,
                 profileId,
                 screenWidth: reqBody.screenWidth ?? 1920,
                 screenHeight: reqBody.screenHeight ?? 1080,

@@ -7,7 +7,6 @@ from playwright.sync_api import sync_playwright
 
 WORKER_URL = "https://gologin-cf.<your-subdomain>.workers.dev"
 API_KEY = "your-worker-api-key"
-GOLOGIN_TOKEN = "your-gologin-api-token"
 PROFILE_ID = "your-profile-id"
 
 # ---- start browser ----
@@ -15,7 +14,6 @@ PROFILE_ID = "your-profile-id"
 gl = GologinCF(
     worker_url=WORKER_URL,
     api_key=API_KEY,
-    token=GOLOGIN_TOKEN,
     profile_id=PROFILE_ID,
 )
 
