@@ -111,6 +111,7 @@ RUN apt-get update && \
       sudo \
       unzip \
       wget \
+      x11-utils \
       x11vnc \
       xdg-utils \
       xvfb \
