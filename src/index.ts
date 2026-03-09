@@ -25,11 +25,10 @@ interface ProfileConfig {
 // ---------------------------------------------------------------------------
 
 export class OrbitaContainer extends Container {
-  defaultPort = 3000;
-  requiredPorts = [3000];
+  defaultPort = 3500;
+  requiredPorts = [3500];
   sleepAfter = "30m";
   enableInternet = true;
-  pingEndpoint = "/health";
 
   override async fetch(
     request: Request,
@@ -90,7 +89,7 @@ export class OrbitaContainer extends Container {
     }
 
     await this.startAndWaitForPorts({
-      ports: [3000],
+      ports: [3500],
       startOptions: {
         envVars: {
           TOKEN: config.token,

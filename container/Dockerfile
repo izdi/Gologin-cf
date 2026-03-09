@@ -106,7 +106,6 @@ RUN apt-get update && \
       ca-certificates \
       curl \
       lsb-release \
-      nginx \
       libcurl3-gnutls \
       psmisc \
       sudo \
@@ -158,16 +157,7 @@ RUN groupadd -r orbita && \
 
 RUN mkdir -p /home/orbita/.gologin/browser
 
-#================
-# nginx (CDP proxy 3500 → 3000)
-#================
-RUN rm -f /etc/nginx/sites-enabled/default
-COPY orbita.conf /etc/nginx/conf.d/orbita.conf
-RUN chmod 777 /var/lib/nginx -R && \
-    chmod 777 /var/log -R && \
-    chmod 777 /run -R
-
-EXPOSE 3000
+EXPOSE 3500
 
 COPY index.js /opt/orbita/index.js
 COPY entrypoint.sh /entrypoint.sh
