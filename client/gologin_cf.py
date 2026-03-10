@@ -52,6 +52,7 @@ class GologinCF:
 
     def start(
         self,
+        url: str = "about:blank",
         timeout: int = 120,
         poll_interval: float = 3,
     ) -> str:
@@ -60,13 +61,14 @@ class GologinCF:
         Returns the rewritten ``webSocketDebuggerUrl`` that Playwright
         or Selenium can connect to directly.
         """
-        url = (
+        api_url = (
             f"{self.worker_url}"
             f"/api/profiles/{self.profile_id}/start"
         )
         resp = requests.post(
-            url,
+            api_url,
             json={
+                "url": url,
                 "screenWidth": self.screen_width,
                 "screenHeight": self.screen_height,
             },

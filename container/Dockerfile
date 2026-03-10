@@ -118,11 +118,11 @@ RUN apt-get update && \
       zip
 
 #================
-# Node 18
+# Python 3 + pip
 #================
-RUN curl --silent --location \
-      https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get -y -qq install nodejs build-essential && \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      python3 python3-pip && \
     fc-cache -f -v
 
 #================
@@ -140,10 +140,10 @@ RUN wget -q \
 RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 #================
-# GoLogin Node SDK
+# GoLogin Python SDK
 #================
-COPY package.json /opt/orbita/package.json
-RUN cd /opt/orbita && npm install
+COPY requirements.txt /opt/orbita/requirements.txt
+RUN pip3 install --no-cache-dir -r /opt/orbita/requirements.txt
 
 #================
 # Non-root user
@@ -161,7 +161,7 @@ RUN mkdir -p /home/orbita/.gologin/browser/fonts && \
 
 EXPOSE 3500
 
-COPY index.js /opt/orbita/index.js
+COPY main.py /opt/orbita/main.py
 COPY entrypoint.sh /entrypoint.sh
 
 RUN chmod 755 /entrypoint.sh && \

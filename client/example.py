@@ -17,7 +17,7 @@ gl = GologinCF(
     profile_id=PROFILE_ID,
 )
 
-ws_url = gl.start()
+ws_url = gl.start(url="https://myip.link/mini")
 print(f"Browser ready at {ws_url}")
 
 # ---- automate with Playwright ----
@@ -27,7 +27,6 @@ with sync_playwright() as pw:
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
 
-    page.goto("https://myip.link/mini")
     print("Page title:", page.title())
     print("Content:", page.content()[:300])
 

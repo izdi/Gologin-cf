@@ -22,6 +22,7 @@ interface Env {
 interface ProfileConfig {
   token: string;
   profileId: string;
+  url: string;
   screenWidth: number;
   screenHeight: number;
 }
@@ -100,6 +101,7 @@ export class OrbitaContainer extends Container {
       env: {
         TOKEN: config.token,
         PROFILE_ID: config.profileId,
+        TARGET_URL: config.url || "about:blank",
         SCREEN_WIDTH: String(
           config.screenWidth || 1920,
         ),
@@ -179,8 +181,9 @@ export default {
       const stub = env.ORBITA.getByName(profileId);
 
       if (action === "start") {
-        const reqBody = (request.body)
+        const reqBody = request.body
           ? await request.json<{
+              url?: string;
               screenWidth?: number;
               screenHeight?: number;
             }>()
@@ -196,8 +199,11 @@ export default {
               body: JSON.stringify({
                 token: env.GOLOGIN_TOKEN,
                 profileId,
-                screenWidth: reqBody.screenWidth ?? 1920,
-                screenHeight: reqBody.screenHeight ?? 1080,
+                url: reqBody.url || "about:blank",
+                screenWidth:
+                  reqBody.screenWidth ?? 1920,
+                screenHeight:
+                  reqBody.screenHeight ?? 1080,
               }),
             },
           ),

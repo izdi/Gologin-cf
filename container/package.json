@@ -1,8 +1,0 @@
-{
-  "name": "orbita-worker",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "gologin": "^2.2.8"
-  }
-}
