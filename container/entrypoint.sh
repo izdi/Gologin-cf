@@ -3,9 +3,6 @@
 echo "[entrypoint] Container started"
 echo "[entrypoint] PROFILE_ID=${PROFILE_ID} TOKEN=${TOKEN:0:8}... URL=${TARGET_URL}"
 
-mkdir -p /tmp/.X11-unix
-chmod 1777 /tmp/.X11-unix
-
 if [ ! -d /dev/shm ]; then
   sudo mkdir -p /dev/shm
   sudo mount -t tmpfs tmpfs /dev/shm 2>/dev/null || true
