@@ -36,6 +36,20 @@ export class OrbitaContainer extends Container {
   sleepAfter = "30m";
   enableInternet = true;
 
+  private applyConfig(config: ProfileConfig): void {
+    (this as any).envVars = {
+      TOKEN: config.token,
+      PROFILE_ID: config.profileId,
+      TARGET_URL: config.url || "about:blank",
+      SCREEN_WIDTH: String(
+        config.screenWidth || 1920,
+      ),
+      SCREEN_HEIGHT: String(
+        config.screenHeight || 1080,
+      ),
+    };
+  }
+
   override async fetch(
     request: Request,
   ): Promise<Response> {
@@ -47,9 +61,10 @@ export class OrbitaContainer extends Container {
       const config =
         await request.json<ProfileConfig>();
       await this.ctx.storage.put("config", config);
-      this.startContainer(config);
+      // Don't start here — container starts lazily
+      // on the first CDP request via super.fetch()
       return Response.json(
-        { status: "starting" },
+        { status: "configured" },
         { status: 202 },
       );
     }
@@ -73,43 +88,28 @@ export class OrbitaContainer extends Container {
 
     // ---- CDP proxy ----
 
-    if (!this.ctx.container.running) {
-      const config =
-        await this.ctx.storage.get<ProfileConfig>(
-          "config",
-        );
-      if (!config) {
-        return Response.json(
-          {
-            error:
-              "Profile not configured." +
-              " POST /api/profiles/:id/start first.",
-          },
-          { status: 400 },
-        );
-      }
-      this.startContainer(config);
+    const config =
+      await this.ctx.storage.get<ProfileConfig>(
+        "config",
+      );
+    if (!config) {
+      return Response.json(
+        {
+          error:
+            "Profile not configured." +
+            " POST /api/profiles/:id/start first.",
+        },
+        { status: 400 },
+      );
     }
 
-    // super.fetch() blocks until defaultPort (3500)
-    // is ready, then proxies the request
-    return super.fetch(request);
-  }
+    // Set dynamic envVars before super.fetch()
+    // auto-starts the container
+    this.applyConfig(config);
 
-  private startContainer(config: ProfileConfig): void {
-    this.ctx.container.start({
-      env: {
-        TOKEN: config.token,
-        PROFILE_ID: config.profileId,
-        TARGET_URL: config.url || "about:blank",
-        SCREEN_WIDTH: String(
-          config.screenWidth || 1920,
-        ),
-        SCREEN_HEIGHT: String(
-          config.screenHeight || 1080,
-        ),
-      },
-    });
+    // super.fetch() starts container (if needed),
+    // waits for defaultPort (3500), then proxies
+    return super.fetch(request);
   }
 }
 
@@ -131,33 +131,6 @@ function authenticate(
   return null;
 }
 
-async function rewriteCdpUrls(
-  response: Response,
-  workerUrl: URL,
-  profileId: string,
-): Promise<Response> {
-  const body = await response.text();
-  const origin =
-    `${workerUrl.protocol}//${workerUrl.host}`;
-  const wsOrigin = origin
-    .replace("https://", "wss://")
-    .replace("http://", "ws://");
-
-  const rewritten = body
-    .replace(
-      /ws:\/\/127\.0\.0\.1:\d+/g,
-      `${wsOrigin}/cdp/${profileId}`,
-    )
-    .replace(
-      /http:\/\/127\.0\.0\.1:\d+/g,
-      `${origin}/cdp/${profileId}`,
-    );
-
-  return new Response(rewritten, {
-    status: response.status,
-    headers: response.headers,
-  });
-}
 
 export default {
   async fetch(
@@ -222,31 +195,21 @@ export default {
       );
     }
 
-    // --- CDP proxy: /cdp/:profileId/... ---
+    // --- container proxy: /c/:profileId/... ---
+    // Proxies to the container's HTTP server on 3500
+    // e.g. /c/:id/health, /c/:id/test
 
-    const cdpRe = /^\/cdp\/([^/]+)(\/.*)?$/;
-    const cdpMatch = path.match(cdpRe);
+    const proxyRe = /^\/c\/([^/]+)(\/.*)?$/;
+    const proxyMatch = path.match(proxyRe);
 
-    if (cdpMatch) {
-      const [, profileId, cdpPath = "/"] = cdpMatch;
+    if (proxyMatch) {
+      const [, profileId, innerPath = "/"] = proxyMatch;
       const stub = env.ORBITA.getByName(profileId);
-
       const fwdUrl = new URL(request.url);
-      fwdUrl.pathname = cdpPath;
-
-      const resp = await stub.fetch(
+      fwdUrl.pathname = innerPath;
+      return stub.fetch(
         new Request(fwdUrl.toString(), request),
       );
-
-      const jsonPaths = [
-        "/json",
-        "/json/version",
-        "/json/list",
-      ];
-      if (jsonPaths.includes(cdpPath)) {
-        return rewriteCdpUrls(resp, url, profileId);
-      }
-      return resp;
     }
 
     // --- root info ---
@@ -258,8 +221,8 @@ export default {
           "POST /api/profiles/:id/start",
           "GET  /api/profiles/:id/status",
           "POST /api/profiles/:id/stop",
-          "GET  /cdp/:id/json/version",
-          "WS   /cdp/:id/devtools/browser/:bid",
+          "GET  /c/:id/health",
+          "GET  /c/:id/test",
         ],
       });
     }
