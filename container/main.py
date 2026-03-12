@@ -33,6 +33,7 @@ def take_screenshot():
             "--disable-dev-shm-usage",
             "--no-zygote",
             "--disable-gpu",
+            "--remote-allow-origins=*",
             f"--window-size={SCREEN_WIDTH},{SCREEN_HEIGHT}",
         ],
     })
