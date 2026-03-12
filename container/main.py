@@ -54,8 +54,22 @@ def take_screenshot():
 
         ws = websocket.create_connection(ws_url, timeout=30)
 
+        # Set viewport size explicitly (--window-size
+        # is unreliable in headless mode)
         ws.send(json.dumps({
             "id": 1,
+            "method": "Emulation.setDeviceMetricsOverride",
+            "params": {
+                "width": int(SCREEN_WIDTH),
+                "height": int(SCREEN_HEIGHT),
+                "deviceScaleFactor": 1,
+                "mobile": False,
+            },
+        }))
+        ws.recv()
+
+        ws.send(json.dumps({
+            "id": 2,
             "method": "Page.navigate",
             "params": {"url": TARGET_URL},
         }))
@@ -64,7 +78,7 @@ def take_screenshot():
         time.sleep(5)
 
         ws.send(json.dumps({
-            "id": 2,
+            "id": 3,
             "method": "Page.captureScreenshot",
             "params": {
                 "format": "png",
