@@ -1,106 +1,118 @@
 import os
-import sys
 import json
+import base64
 import time
-import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
 
 import requests as req
 from gologin import GoLogin
 
 TOKEN = os.environ.get("TOKEN", "")
 PROFILE_ID = os.environ.get("PROFILE_ID", "")
-TARGET_URL = os.environ.get("TARGET_URL", "https://myip.link/mini")
+
+print(f"[env] TOKEN={'set' if TOKEN else 'MISSING'}")
+print(f"[env] PROFILE_ID={PROFILE_ID or 'MISSING'}")
 SCREEN_WIDTH = os.environ.get("SCREEN_WIDTH", "1920")
 SCREEN_HEIGHT = os.environ.get("SCREEN_HEIGHT", "1080")
 CDP_PORT = 9222
-
-browser_ready = False
-browser_error = None
-debugger_addr = None
+TARGET_URL = "https://gosu.team"
 
 
-def start_browser():
-    global browser_ready, browser_error, debugger_addr
+def take_screenshot():
+    """Start browser, go to gosu.team, return PNG bytes."""
+    print(f"[main] TOKEN={TOKEN[:8]}... PROFILE={PROFILE_ID}")
 
-    if not TOKEN or not PROFILE_ID:
-        browser_error = "TOKEN and PROFILE_ID are required"
-        print(f"[browser] {browser_error}", file=sys.stderr)
-        return
+    gl = GoLogin({
+        "token": TOKEN,
+        "profile_id": PROFILE_ID,
+        "port": CDP_PORT,
+        "executablePath": "/usr/bin/orbita-browser/chrome",
+        "extra_params": [
+            "--headless",
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--no-zygote",
+            "--disable-gpu",
+            f"--window-size={SCREEN_WIDTH},{SCREEN_HEIGHT}",
+        ],
+    })
+    gl.checkProxyRecoverRecordIfNeeded = lambda: None
+
+    print("[main] Starting browser...")
+    gl.start()
+    print("[main] Browser ready")
 
     try:
-        gl = GoLogin({
-            "token": TOKEN,
-            "profile_id": PROFILE_ID,
-            "port": CDP_PORT,
-            "executablePath": "/usr/bin/orbita-browser/chrome",
-            "extra_params": [
-                "--headless",
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--no-zygote",
-                "--disable-gpu",
-                f"--window-size={SCREEN_WIDTH},{SCREEN_HEIGHT}",
-            ],
-        })
-        debugger_addr = gl.start()
-        browser_ready = True
-        print(f"[browser] Ready at {debugger_addr}")
+        import websocket
 
-        if TARGET_URL and TARGET_URL != "about:blank":
-            print(f"[browser] Navigating to {TARGET_URL}")
-            req.get(
-                f"http://127.0.0.1:{CDP_PORT}/json/new"
-                f"?{TARGET_URL}",
-                timeout=10,
-            )
-    except Exception as exc:
-        browser_error = str(exc)
-        print(f"[browser] FATAL: {exc}", file=sys.stderr)
+        tabs = req.get(
+            f"http://127.0.0.1:{CDP_PORT}/json/list",
+            timeout=10,
+        ).json()
+        ws_url = tabs[0]["webSocketDebuggerUrl"]
+
+        ws = websocket.create_connection(ws_url, timeout=30)
+
+        ws.send(json.dumps({
+            "id": 1,
+            "method": "Page.navigate",
+            "params": {"url": TARGET_URL},
+        }))
+        ws.recv()
+        print(f"[main] Navigating to {TARGET_URL}")
+        time.sleep(5)
+
+        ws.send(json.dumps({
+            "id": 2,
+            "method": "Page.captureScreenshot",
+            "params": {
+                "format": "png",
+                "captureBeyondViewport": True,
+            },
+        }))
+        result = json.loads(ws.recv())
+        ws.close()
+
+        b64 = result.get("result", {}).get("data")
+        if not b64:
+            return None, f"No screenshot data: {result}"
+
+        png = base64.b64decode(b64)
+        print(f"[main] Screenshot OK ({len(png)} bytes)")
+        return png, None
+
+    finally:
+        try:
+            gl.stop()
+        except Exception:
+            pass
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        path = urlparse(self.path).path
+        if self.path == "/screenshot":
+            try:
+                png, err = take_screenshot()
+            except Exception as exc:
+                self._json(500, {"error": str(exc)})
+                return
 
-        if path == "/health":
-            self._json(200, {
-                "ready": browser_ready,
-                "error": browser_error,
-                "debugger": debugger_addr,
-                "profileId": PROFILE_ID,
-            })
-        elif path == "/test":
-            self._handle_test()
+            if err:
+                self._json(500, {"error": err})
+                return
+
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header(
+                "Content-Length", str(len(png)),
+            )
+            self.end_headers()
+            self.wfile.write(png)
         else:
-            self._json(404, {"error": "not found"})
-
-    def _handle_test(self):
-        if not browser_ready:
-            self._json(503, {
-                "error": browser_error or "browser starting",
-            })
-            return
-        try:
-            tabs = req.get(
-                f"http://127.0.0.1:{CDP_PORT}/json/list",
-                timeout=5,
-            ).json()
-            self._json(200, {
-                "profileId": PROFILE_ID,
-                "targetUrl": TARGET_URL,
-                "tabs": [
-                    {"title": t.get("title", ""),
-                     "url": t.get("url", "")}
-                    for t in tabs
-                ],
-            })
-        except Exception as exc:
-            self._json(500, {"error": str(exc)})
+            self._json(200, {"status": "ready"})
 
     def _json(self, code, data):
-        body = json.dumps(data, indent=2).encode()
+        body = json.dumps(data).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -111,7 +123,5 @@ class Handler(BaseHTTPRequestHandler):
         print(f"[http] {fmt % args}")
 
 
-threading.Thread(target=start_browser, daemon=True).start()
-
-print("[main] HTTP server starting on :3500")
+print("[main] Server listening on :3500")
 HTTPServer(("0.0.0.0", 3500), Handler).serve_forever()
