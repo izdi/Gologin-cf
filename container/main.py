@@ -3,6 +3,7 @@ import json
 import base64
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
 
 import requests as req
 from gologin import GoLogin
@@ -15,12 +16,13 @@ print(f"[env] PROFILE_ID={PROFILE_ID or 'MISSING'}")
 SCREEN_WIDTH = os.environ.get("SCREEN_WIDTH", "1920")
 SCREEN_HEIGHT = os.environ.get("SCREEN_HEIGHT", "1080")
 CDP_PORT = 9222
-TARGET_URL = "https://gosu.team"
+DEFAULT_URL = "https://gosu.team"
 
 
-def take_screenshot():
-    """Start browser, go to gosu.team, return PNG bytes."""
+def take_screenshot(target_url):
+    """Start browser, go to target_url, return PNG bytes."""
     print(f"[main] TOKEN={TOKEN[:8]}... PROFILE={PROFILE_ID}")
+    print(f"[main] URL={target_url}")
 
     gl = GoLogin({
         "token": TOKEN,
@@ -71,10 +73,10 @@ def take_screenshot():
         ws.send(json.dumps({
             "id": 2,
             "method": "Page.navigate",
-            "params": {"url": TARGET_URL},
+            "params": {"url": target_url},
         }))
         ws.recv()
-        print(f"[main] Navigating to {TARGET_URL}")
+        print(f"[main] Navigating to {target_url}")
         time.sleep(5)
 
         ws.send(json.dumps({
@@ -105,9 +107,12 @@ def take_screenshot():
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == "/screenshot":
+        parsed = urlparse(self.path)
+        if parsed.path == "/screenshot":
+            qs = parse_qs(parsed.query)
+            url = qs.get("url", [DEFAULT_URL])[0]
             try:
-                png, err = take_screenshot()
+                png, err = take_screenshot(url)
             except Exception as exc:
                 self._json(500, {"error": str(exc)})
                 return

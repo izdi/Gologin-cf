@@ -97,8 +97,14 @@ export default {
 
       // 2. Request screenshot — this starts the
       //    container and proxies to port 3500
+      const reqUrl = new URL(request.url);
+      const targetUrl =
+        reqUrl.searchParams.get("url") ||
+        "https://gosu.team";
       return stub.fetch(
-        new Request("http://do/screenshot"),
+        new Request(
+          `http://do/screenshot?url=${encodeURIComponent(targetUrl)}`,
+        ),
       );
     }
 
